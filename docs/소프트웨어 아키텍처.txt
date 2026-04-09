@@ -1,0 +1,26 @@
+graph LR
+    subgraph "Frontend (박윤성)"
+        A[사용자 UI/앱] --> B[증상 입력]
+    end
+
+    subgraph "Backend (박세준)"
+        B --> C[Node.js 서버]
+        C --> D{RESTful API}
+    end
+
+    subgraph "AI Engine (강명석)"
+        D --> E[Python AI 모델]
+        E --> F[자연어 처리/질병 추론]
+        F --> D
+    end
+
+    subgraph "Database (박윤성)"
+        C --> G[(MySQL)]
+        G --> |히스토리 관리| C
+    end
+
+    D --> |분석 결과 전달| A
+
+
+Python의 역할: 사용자의 문장(예: "어제부터 머리가 깨질 듯이 아파")을 분석하여 질병 가능성 데이터를 추출하는 엔진 역할을 합니다.
+Node.js의 역할: 사용자 인터페이스와 AI 엔진 사이를 중개하며, DB에 데이터를 저장하고 전체 시스템을 제어합니다.
