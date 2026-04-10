@@ -1,1 +1,6 @@
  Backend
+
+ routes/: API 경로를 정의합니다. (예: /diagnose, /users)
+ views/: 사용자에게 보여줄 HTML/EJS 템플릿 파일이 들어갑니다. (서버 사이드 렌더링 시 사용)
+ public/: 이미지, CSS, 클라이언트용 자바스크립트 등 정적 파일을 보관합니다.
+ models/: MySQL DB와 통신하는 로직을 분리하여 관리합니다. (데이터 구조 정의)
