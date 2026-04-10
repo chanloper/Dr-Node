@@ -1,1 +1,44 @@
  MySQL 설계 및 쿼리 파일 보관용
+
+
+-- 1. 데이터베이스 생성 및 선택
+CREATE DATABASE IF NOT EXISTS Dr_Node_DB;
+USE Dr_Node_DB;
+
+-- 2. 사용자 테이블 (Users)
+-- 사용자의 기본 정보와 인구통계학적 데이터를 저장합니다.
+CREATE TABLE IF NOT EXISTS Users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '사용자 고유 번호',
+    login_id VARCHAR(50) NOT NULL UNIQUE COMMENT '로그인 아이디',
+    password VARCHAR(255) NOT NULL COMMENT '암호화된 비밀번호',
+    username VARCHAR(30) NOT NULL COMMENT '사용자 이름',
+    age INT COMMENT '나이 (AI 분석 보조 지표)',
+    gender ENUM('Male', 'Female', 'Other') COMMENT '성별',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. 자가 진단 히스토리 테이블 (Diagnosis_Logs)
+-- 사용자가 입력한 증상과 AI의 분석 결과를 기록합니다.
+CREATE TABLE IF NOT EXISTS Diagnosis_Logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY COMMENT '진단 로그 고유 번호',
+    user_id INT NOT NULL COMMENT '작성자 ID',
+    user_input TEXT NOT NULL COMMENT '사용자가 입력한 자연어 증상 [cite: 42]',
+    predicted_disease VARCHAR(100) COMMENT 'AI가 예측한 질병명 [cite: 34]',
+    probability FLOAT COMMENT '질병 가능성 정확도 (90% 이상 목표) [cite: 49]',
+    recommended_dept VARCHAR(100) COMMENT '추천 진료 과목 [cite: 44]',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 4. 병원 및 편의 시설 테이블 (Facilities)
+-- 사용자 위치 기반 병원 추천을 위한 데이터를 저장합니다[cite: 1, 44].
+CREATE TABLE IF NOT EXISTS Facilities (
+    facility_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL COMMENT '병원/약국 이름 [cite: 38, 39]',
+    category ENUM('Hospital', 'Pharmacy') NOT NULL COMMENT '분류',
+    department VARCHAR(50) COMMENT '진료 과목',
+    latitude DECIMAL(10, 8) COMMENT '위도',
+    longitude DECIMAL(11, 8) COMMENT '경도',
+    address VARCHAR(255) COMMENT '주소',
+    phone VARCHAR(20) COMMENT '전화번호'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
