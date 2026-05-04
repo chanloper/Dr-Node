@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Dr. MAS 테스트</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f7f6; }
+        .chat-box { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        input { width: 75%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        button { width: 20%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #result { margin-top: 20px; padding: 15px; background: #eef; border-radius: 5px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<div class="chat-box">
+    <h2>🩺 Dr. MAS AI 테스트</h2>
+    <input type="text" id="symptom" placeholder="어디가 아프신가요?">
+    <button onclick="sendChat()">전송</button>
+    <div id="result">여기에 결과가 표시됩니다.</div>
+</div>
+<script>
+    let userLat = null;
+    let userLng = null;
+
+    // 페이지가 열리면 자동으로 현재 위치(GPS)를 가져옵니다.
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            userLat = position.coords.latitude;
+            userLng = position.coords.longitude;
+            console.log("📍 위치 가져오기 성공!", userLat, userLng);
+        },
+        (error) => {
+            console.log("⚠️ 위치를 가져올 수 없습니다. 권한을 허용해주세요.");
+        }
+    );
+
+    async function sendChat() {
+        const symptomText = document.getElementById('symptom').value;
+        const resultDiv = document.getElementById('result');
+        
+        // 로딩 안내 문구 업그레이드
+        resultDiv.innerText = "Dr. MAS가 심평원 데이터를 확인하고 분석 중입니다... ⏳ (약 3~5초 소요)";
+
+        try {
+            const response = await fetch('http://localhost:3000/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // 🚨 백엔드에 증상과 함께 GPS 좌표도 쏴줍니다!
+                body: JSON.stringify({ userId: 1, symptomText: symptomText, userLat: userLat, userLng: userLng })
+            });
+            const data = await response.json();
+            if(data.success) {
+                resultDiv.innerHTML = `<strong>의심 질환 (Top 3):</strong> ${data.data.predictedDisease}<br><br><strong>Dr. MAS의 안내:</strong> ${data.data.guide}`;
+            } else { resultDiv.innerText = "오류: " + data.message; }
+        } catch (e) { resultDiv.innerText = "서버 연결 실패!"; }
+    }
+</script>
+</body>
+</html>
