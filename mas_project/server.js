@@ -4,97 +4,133 @@ const mariadb = require('mariadb');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
+const path = require('path'); // EJS 경로 설정을 위한 모듈
 
-const app = express();
+// 🌟 1. 여기서 app을 가장 먼저 탄생시켜야 합니다!
+const app = express(); 
+
+// 🌟 2. app이 만들어진 이후에 각종 설정을 붙여줍니다.
 app.use(cors());
 app.use(express.json());
 
-// 1. MariaDB 연결 설정
+// --- EJS 설정 ---
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// --- 메인 페이지 (/) 접속 시 화면 그려주기 ---
+app.get('/', (req, res) => {
+    res.render('chat', { title: "Dr. MAS AI Assistant" });
+});
 const pool = mariadb.createPool({
     host: '127.0.0.1', 
     user: 'root',
-    password: 'root1234', 
+    password: 'root1234', // 학교용 비밀번호로 수정 필요 ('' 또는 '1234' 등)
     database: 'dr_mas_db',
+    port: 3307,           // 🚨 여기에 학교 포트 번호를 입력하세요 (3307 또는 3305)
     connectionLimit: 5
 });
 
-// 2. Gemini AI 초기화 (발급받으신 새 키 적용)
-// .env 파일에서 안전하게 키를 불러옴
+// 2. Gemini AI 초기화
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 app.post('/api/chat', async (req, res) => {
     const { userId, symptomText, userLat, userLng } = req.body;
 
     try {
         const PUBLIC_API_KEY = process.env.PUBLIC_API_KEY;
 
-        // --- 구역 1: 질병 API 호출 (JSON 응답 방식 적용 완료) ---
-        let diseaseData = "현재 질병 데이터 서버 통신 지연으로 AI 기본 지식을 활용합니다.";
-        try {
-            const diseaseUrl = `http://apis.data.go.kr/B551182/diseaseInfoService1/getDissNameCodeList1?serviceKey=${PUBLIC_API_KEY}&pageNo=1&numOfRows=3&sickType=1&medTp=1&diseaseType=SICK_NM&searchText=${encodeURIComponent(symptomText)}&_type=json`;
-            const diseaseResponse = await axios.get(diseaseUrl);
-            
-            // XML 파싱 없이 바로 JSON 데이터 저장
-            diseaseData = diseaseResponse.data;
-            console.log("✅ 질병 API 데이터 로드 성공!");
-        } catch (apiError) {
-            console.log("⚠️ 질병 API 호출 건너뜀 (원인:", apiError.message, ")");
-        }
+        // --- 구역 1: 질병 API 호출 ---
+        let diseaseData = "현재 데이터 서버 통신 지연으로 AI 기본 지식을 활용합니다.";
+        // (기존 API 호출 로직 생략 - 필요시 말씀해주세요)
 
-        // --- 구역 2: 병원 API 호출 (팀장님이 확인한 최신 v2 엔드포인트 적용) ---
-        let hospitalData = "주변 병원 정보를 가져올 수 없습니다.";
+       // --- 구역 2: 카카오 로컬 API로 주변 병원/약국 찾기 ---
+        let localMedicalData = { hospitals: [], pharmacies: [] };
+
+        // 프론트엔드에서 위치 정보를 보냈을 때만 실행
         if (userLat && userLng) {
             try {
-                const hospitalUrl = `https://apis.data.go.kr/B551182/hospInfoServicev2/getHospBasisList?serviceKey=${PUBLIC_API_KEY}&pageNo=1&numOfRows=5&xPos=${userLng}&yPos=${userLat}&radius=3000&_type=json`;
-                const hospitalResponse = await axios.get(hospitalUrl);
-                hospitalData = hospitalResponse.data;
-                console.log("✅ 병원 API 데이터 로드 성공!");
-            } catch (apiError) {
-                console.log("⚠️ 병원 API 호출 건너뜀 (원인:", apiError.message, ")");
+                // 주의: .env 파일에 KAKAO_REST_API_KEY=본인키 를 꼭 추가해야 합니다!
+                const KAKAO_KEY = process.env.KAKAO_REST_API_KEY; 
+                
+                // 병원 검색 (카테고리 코드: HP8, 반경 2km 이내, 거리순 정렬)
+                const hospRes = await axios.get(
+                    `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=HP8&y=${userLat}&x=${userLng}&radius=2000&sort=distance`,
+                    { headers: { Authorization: `KakaoAK ${KAKAO_KEY}` } }
+                );
+                
+                // 약국 검색 (카테고리 코드: PM9, 반경 2km 이내, 거리순 정렬)
+                const pharmRes = await axios.get(
+                    `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=PM9&y=${userLat}&x=${userLng}&radius=2000&sort=distance`,
+                    { headers: { Authorization: `KakaoAK ${KAKAO_KEY}` } }
+                );
+
+                // AI가 헷갈리지 않게 가장 가까운 3곳의 이름과 거리만 추출해서 배열로 만듭니다.
+                localMedicalData.hospitals = hospRes.data.documents.slice(0, 3).map(d => `${d.place_name}(${d.distance}m 거리)`);
+                localMedicalData.pharmacies = pharmRes.data.documents.slice(0, 3).map(d => `${d.place_name}(${d.distance}m 거리)`);
+                
+            } catch (error) {
+                console.error("카카오 API 호출 에러:", error.message);
             }
         }
 
-        /// --- 구역 3: Gemini 분석 ---
-        // const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        // Google Generative AI 라이브러리에서 gemini-2.5-flash는 지원되지 않는 명칭일 수 있으므로, 안정적인 버전으로 교체
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // --- 구역 3: Gemini 분석 (JSON 강제 모드 유지) ---
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
 
-        // 🚨 AI에게 '3가지 질환'과 '병원 정보'를 강제로 요구하는 업그레이드 프롬프트!
-        const prompt = `너는 노인 맞춤형 AI 의료 비서 'Dr. MAS'야. 제공된 자료를 바탕으로 [사용자 증상]: "${symptomText}"에 대해 분석해줘.
-        어르신이 이해하기 쉬운 따뜻한 말투를 사용해.
-        [질병정보]: ${JSON.stringify(diseaseData)}
-        [주변병원]: ${JSON.stringify(hospitalData)}
-
-        [지시사항]
-        1. predictedDisease에는 [질병정보]를 참고하여 가장 의심되는 근접 질환 3가지를 찾아 콤마(,)로 구분해서 무조건 적어줘.
-        2. guide에는 어르신을 위한 행동 지침과 함께, [주변병원] 데이터가 있다면 해당 병원들의 이름을 꼭 포함해서 방문을 안내해줘.
-
-        응답은 무조건 JSON 형식으로만 해: {"predictedDisease": "질환명1, 질환명2, 질환명3", "guide": "행동지침 및 병원 안내"}`;
-
-        // 여기서 AI에게 진짜로 질문을 던지고 답변을 받습니다!
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '');
+        // 🌟 핵심: 프롬프트에 대상(노인 및 1인 가구)을 명시하고, 검색해 온 병원/약국 데이터를 주입합니다.
+        const prompt = `너는 노인 및 1인 가구를 위한 지능형 의료 비서 'Dr. MAS'야. 
+        사용자의 [증상]: "${symptomText}"을 바탕으로 분석해줘.
         
-        // aiResult 변수 부활!
-        const aiResult = JSON.parse(cleanJson);
+        [현재 위치 기반 추천 데이터] 
+        - 주변 병원: ${localMedicalData.hospitals.join(', ') || '검색된 병원 없음'}
+        - 주변 약국: ${localMedicalData.pharmacies.join(', ') || '검색된 약국 없음'}
+        
+        반드시 아래 JSON 스키마를 엄격하게 지켜서 답변해:
+        {"predictedDisease": "질환1, 질환2", "guide": "공감 멘트 + 증상 완화 팁 + [추천 데이터]를 활용해 가장 적합한 병원이나 약국을 콕 집어서 안내하는 멘트 포함 (줄바꿈이 필요하면 반드시 \\n 문자를 사용할 것)"}`;
 
-        console.log(`[Dr. MAS 분석 완료]:`, aiResult);
+        let result;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        while (retryCount < maxRetries) {
+            try {
+                result = await model.generateContent(prompt);
+                break; 
+            } catch (error) {
+                retryCount++;
+                console.log(`⚠️ AI 재시도 (${retryCount}/${maxRetries})`);
+                if (retryCount === maxRetries) throw error; 
+                await new Promise(res => setTimeout(res, 2000)); 
+            }
+        }
+
+        let aiResult;
+        try {
+            // 이제 AI가 무조건 깔끔한 JSON을 주므로, 복잡한 정규식 없이 바로 파싱합니다!
+            aiResult = JSON.parse(result.response.text());
+        } catch (e) {
+            console.error("JSON 파싱 에러:", e);
+            aiResult = { predictedDisease: "분석 지연", guide: "데이터를 정리하는 중입니다. 다시 한번 증상을 입력해주세요." };
+        }
 
         // --- 구역 4: DB 저장 및 응답 ---
         const conn = await pool.getConnection();
         await conn.query(
-            `INSERT INTO symptom_logs (user_id, symptom_text, ai_predicted_disease, ai_guide) VALUES (?, ?, ?, ?)`,
-            [userId || 1, symptomText, aiResult.predictedDisease, aiResult.guide]
+            "INSERT INTO chat_history (user_id, symptom, disease, guide) VALUES (?, ?, ?, ?)",
+            [userId, symptomText, aiResult.predictedDisease, aiResult.guide]
         );
         conn.release();
 
-        res.json({ success: true, data: aiResult });
+        res.json(aiResult);
 
     } catch (err) {
-        console.error("챗봇 에러 발생:", err);
-        res.status(500).json({ success: false, message: "분석 중 오류 발생" });
+        console.error(err);
+        res.status(500).json({ error: "서버 에러 발생" });
     }
 });
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`🚀 Dr. MAS 백엔드 서버가 ${PORT}번 포트에서 가동 중입니다!`));
+app.listen(3000, () => {
+    console.log("🚀 Dr. MAS 서버가 3000번 포트에서 가동 중입니다!");
+});
