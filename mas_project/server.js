@@ -4,16 +4,13 @@ const mariadb = require('mariadb');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
-const path = require('path'); // EJS 경로 설정을 위한 모듈
-
-// 🌟 1. 여기서 app을 가장 먼저 탄생시켜야 합니다!
+const path = require('path'); 
 const app = express(); 
-
-// 🌟 2. app이 만들어진 이후에 각종 설정을 붙여줍니다.
+// 1. DB와 EJS설정
 app.use(cors());
 app.use(express.json());
 
-// --- EJS 설정 ---
+//--EJS 설정 ---
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
