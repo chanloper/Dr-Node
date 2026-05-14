@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title><%= title %></title> <style>
+        /* (위에서 드린 CSS 스타일과 동일하므로 생략 - 그대로 넣으시면 됩니다) */
+        * { box-sizing: border-box; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: #f0f2f5; display: flex; justify-content: center; padding: 20px; margin: 0; }
+        .app-container { width: 100%; max-width: 450px; background: white; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; height: 80vh; }
+        .header { background: #0056b3; color: white; padding: 20px; text-align: center; font-size: 1.2rem; font-weight: bold; }
+        .header span { font-size: 0.9rem; font-weight: normal; opacity: 0.8; display: block; margin-top: 5px; }
+        .chat-window { flex: 1; padding: 20px; overflow-y: auto; background-color: #f4f7f6; display: flex; flex-direction: column; gap: 15px; }
+        .msg { max-width: 85%; padding: 12px 16px; border-radius: 15px; font-size: 0.95rem; line-height: 1.5; word-wrap: break-word; }
+        .msg.user { align-self: flex-end; background: #007bff; color: white; border-bottom-right-radius: 2px; }
+        .msg.ai { align-self: flex-start; background: white; color: #333; border: 1px solid #e1e4e8; border-bottom-left-radius: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .badge { display: inline-block; background: #ffebee; color: #c62828; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold; margin: 2px 4px 2px 0; }
+        .input-area { display: flex; padding: 15px; background: white; border-top: 1px solid #eee; }
+        .input-area input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-size: 1rem; }
+        .input-area button { margin-left: 10px; padding: 10px 20px; background: #0056b3; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        .loading { font-size: 0.9rem; color: #888; align-self: flex-start; margin-left: 10px; display: none; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="header">
+        🩺 Dr. MAS
+        <span><%= title %></span>
+    </div>
+    
+    <div class="chat-window" id="chat-window">
+        <div class="msg ai">
+            안녕하세요! 팀 MAS에서 개발한 Dr. MAS입니다. 😊<br>어디가 불편하신지 말씀해 주시면 1인 가구의 든든한 동반자가 되어 드릴게요.
+        </div>
+    </div>
+    
+    <div class="loading" id="loading-msg">Dr. MAS가 의료 데이터를 정밀 분석 중입니다... ⏳</div>
+
+    <div class="input-area">
+        <input type="text" id="symptom" placeholder="증상을 입력하세요 (예: 머리가 지끈거려요)" onkeypress="if(event.key === 'Enter') sendChat()">
+        <button onclick="sendChat()">전송</button>
+    </div>
+</div>
+
+<script>
+    // 위치 정보를 가져오는 기능을 Promise로 감싸서 사용하기 편하게 만듭니다.
+function getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("이 브라우저에서는 위치 서비스를 지원하지 않습니다."));
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        });
+    });
+}
+
+async function sendChat() {
+    const symptomText = symptomInput.value.trim();
+    if(!symptomText) return alert("증상을 입력해주세요!");
+    
+    appendMessage('user', symptomText);
+    symptomInput.value = '';
+    loadingMsg.style.display = 'block';
+
+    try {
+        // 🌟 시연용 좌표 대신 실제 위치 정보를 가져옵니다.
+        let userLat = null;
+        let userLng = null;
+
+        try {
+            const position = await getCurrentLocation();
+            userLat = position.coords.latitude;
+            userLng = position.coords.longitude;
+            console.log(`현재 위치 확인: ${userLat}, ${userLng}`);
+        } catch (locError) {
+            console.warn("위치 정보를 가져오지 못했습니다. 기본 검색으로 진행합니다.", locError);
+            // 위치 권한 거부 시 처리 로직을 여기에 추가할 수 있습니다.
+        }
+
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                userId: 1, 
+                symptomText: symptomText,
+                userLat: userLat,
+                userLng: userLng
+            })
+        });
+        
+        const data = await response.json();
+        loadingMsg.style.display = 'none';
+        
+        if(data.predictedDisease) {
+            const diseases = data.predictedDisease.split(',');
+            let badgesHtml = '<div style="margin-bottom:10px;">';
+            diseases.forEach(d => {
+                if(d.trim() !== "") badgesHtml += `<span class="badge">${d.trim()}</span>`;
+            });
+            badgesHtml += '</div>';
+
+            const formattedGuide = data.guide.replace(/\n/g, '<br>');
+            appendMessage('ai', badgesHtml + formattedGuide, true);
+        }
+    } catch (error) {
+        loadingMsg.style.display = 'none';
+        appendMessage('ai', "서버 통신에 실패했습니다.");
+    }
+}
+</script>
+
+</body>
+</html>
