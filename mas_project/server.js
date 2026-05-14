@@ -54,7 +54,9 @@ app.post('/api/chat', async (req, res) => {
         }
 
         /// --- 구역 3: Gemini 분석 ---
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        // const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        // Google Generative AI 라이브러리에서 gemini-2.5-flash는 지원되지 않는 명칭일 수 있으므로, 안정적인 버전으로 교체
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         // 🚨 AI에게 '3가지 질환'과 '병원 정보'를 강제로 요구하는 업그레이드 프롬프트!
         const prompt = `너는 노인 맞춤형 AI 의료 비서 'Dr. MAS'야. 제공된 자료를 바탕으로 [사용자 증상]: "${symptomText}"에 대해 분석해줘.
