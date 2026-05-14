@@ -4,13 +4,16 @@ const mariadb = require('mariadb');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
-const path = require('path'); 
+const path = require('path'); // EJS 경로 설정을 위한 모듈
+
+// 1. 여기서 app을 가장 먼저 탄생시켜야 합니다!
 const app = express(); 
-// 1. DB와 EJS설정
+
+// 🌟 2. app이 만들어진 이후에 각종 설정을 붙여줍니다.
 app.use(cors());
 app.use(express.json());
 
-//--EJS 설정 ---
+// --- EJS 설정 ---
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -77,7 +80,7 @@ app.post('/api/chat', async (req, res) => {
         });
 
         // 🌟 핵심: 프롬프트에 대상(노인 및 1인 가구)을 명시하고, 검색해 온 병원/약국 데이터를 주입합니다.
-        const prompt = `너는 노인 및 1인 가구를 위한 지능형 의료 비서 'Dr. MAS'야. 
+        const prompt = `너는 청년과 중장년층 및 1인 가구를 위한 지능형 의료 비서 'Dr. MAS'야. 
         사용자의 [증상]: "${symptomText}"을 바탕으로 분석해줘.
         
         [현재 위치 기반 추천 데이터] 
